@@ -250,9 +250,25 @@ Other useful methods defined for the `fd` class includes: `coef`, `density`, `de
 
 Recall that $x(t) \approx \sum_{k=1}^K c_k\phi_k(t)$ and the ordinary least squares estimate is $\hat{\mathbf{c}} = (\mathbf{\phi}^T\mathbf{\phi})^{-1}\mathbf{\phi}^T\mathbf{y}$.
 
-Next we use an example to illustrate how to use this method to smooth the functional data
+Next we use an example to illustrate how to use this method to smooth the functional data manually.
 
-```{r ex9, eval=FALSE}
+**January Thaw Data** In the following example, we will use 34 years of daily temperature data for Montreal, extracts temperatures for January 16th to February 15th. The data looks like this:
+
+           1961  1962  1963  1964  1965  1966  1967  1968  1969  1970 ... 1993  1994
+    jan16 -10.9  -7.5 -16.2  -4.2 -22.5 -15.9 -13.9 -21.4 -15.8 -17.5 ... -7.1  -26.2
+	jan17  -6.1 -13.1 -12.0  -8.1 -22.0  -7.8  -6.4 -17.8  -7.3  -8.9 ... -5.6  -16.3
+	jan18 -16.1 -15.9 -12.3  -4.2 -16.1  -6.4 -19.8  -8.9   0.8 -17.3 ... -12.9 -18.0
+	jan19 -21.7 -13.1  -8.1   0.3 -13.6  -3.6 -17.0   1.1  -2.5 -23.6 ... -14.5 -24.6
+	jan20 -19.2 -12.8  -3.4   2.0  -7.2  -1.2  -9.7   0.3  -9.5 -23.9 ... -5.8  -17.6
+	...    ...   ...   ...   ...   ...   ...   ...   ...   ...  ...   ...  ...   ...
+	feb15  -7.2 -10.9 -13.6  -10.0 -7.0 -10.3  -7.5 -13.3  -9.7 -15.6 ... -12.1 -15.9
+	feb16 -11.2  -9.5 -19.5  -8.1  -4.8  -4.5 -15.3 -12.5  -9.2 -11.7 ... -5.9  -9.9
+```{r ex9-1, eval=FALSE}
+```
+
+We can also use the `smooth.basis` function to produce the same results above without implicitly evaluate the basis functions:
+
+```{r ex9-2, eval=FALSE}
 ```
 
 ### The Linear Differential Operator or `Lfd` Class
@@ -265,7 +281,7 @@ $$Lx(t) = \beta_0(t)x(t) + \beta_1(t)Dx(t) + \cdots + \beta_{m-1}(t)D^{m-1}x(t) 
 
 where the known *linear differential operator coefficient functions* $\beta_j(t), j=0,..., m-1$ are either constants or functions.
 
-Some special examples are acceleration, $Lx=D^2x$, andharmonic acceleration $L=\omega^2D + D^3$.
+Some special examples are acceleration, $Lx=D^2x$, and harmonic acceleration $L=\omega^2D + D^3$, where $\omega$ is the period. (For now we just focus on how it is defined, we'll go through more detail about harmonic acceleration operator later).
 
 The `Lfd` class is defined by a constructor function `Lfd`:
 
@@ -273,7 +289,7 @@ The `Lfd` class is defined by a constructor function `Lfd`:
 
 **Description**
 
-    A linear differential operator of order $m$ is defined, usually to specify a roughness penalty.
+    A linear differential operator of order m is defined, usually to specify a roughness penalty.
 
      
 **Arguments**
@@ -281,20 +297,19 @@ The `Lfd` class is defined by a constructor function `Lfd`:
 - *nderiv*: a nonnegative integer specifying the order $m$ of the highest
           order derivative in the operator
 
-- *bwtlist*: a list of length $m$.  Each member contains a functional data
-          object that acts as a weight function for a derivative.  The
+- *bwtlist*: a list of length $m$.  Each member contains a **functional data
+          object** that acts as a weight function for a derivative.  The
           first member weights the function, the second the first
           derivative, and so on up to order $m-1$.
 
 **Examples**
 
-> For example, consider the harmonic acceleration object. Here $m = 3$, and $\beta_0 = \beta_2 = 0$ while $\beta_1=\omega^2$. In R we could define the harmonic acceleration Lfd object harmaccelLfd in this way:
+Consider the harmonic acceleration operator where $m = 3$, $\beta_0 = \beta_2 = 0$ and $\beta_1=\omega^2$. In R we could define the harmonic acceleration object `harmaccelLfd0` in this way:
 
 ```{r ex10-1, eval=FALSE}
 ```
 
-> The code above is a bit cumbersome for the majority of situations where the differential
-operator is just a power of $D$ or where all the coefficients $\beta_j$ are constants.
+However, the code used above is a little bit cumbersome. Most of the time the differential operator we need is just a power of $D$ or all the coefficients $\beta_j$ are constants, and in such situation, we can simply use `int2Lfd` and `vec2Lfd` functions.
 
 ```{r ex10-2, eval=FALSE}
 ```
@@ -304,3 +319,30 @@ operator is just a power of $D$ or where all the coefficients $\beta_j$ are cons
 ```{r ex10-3, eval=FALSE}
 ```
 
+### Data Smoothing with Roughness Penalties
+
+Recall that a natural measure of a function's roughness is the integrated squared second derivative:
+
+$$\text{PEN}(x) = \int [D^2 x(s)]^2 ds]$$
+
+But is "roughness" always related to the second derivative? No.
+
+For example, for period functions of known period of known period that
+can vary in level, such as mean temperature curves, the baseline
+behavior can be considered to be shifted sinusoidal variation,
+
+$$x(t) = c_0 + a_1 sin \omega t + b1 cos \omega t$$
+
+that is, represented by the first three terms in the Fourier series for some known $\omega = 2\pi/T$, then $D^3x + \omega^2 Dx$ is exactly 0, the so called **harmonic acceleration operator**, which may be a suitable measure of roughness for periodic data.
+
+## Roughness penalty matrix
+
+Recall that the roughness penalty matrix $R$ is defined as:
+
+$$\int [D^m x(s)]^2 ds = \int \mathbf{c}^T[D^m\phi(s)][D^m\phi(s)]^T\mathbf{c}ds = \mathbf{c}^T\mathbf{R}\mathbf{c}$$
+
+We can calculate the roughness matrix in R by using
+
+```{r eval=FALSE}
+eval.penalty(basisobj, Lfdobj=int2Lfd(0), rng=rangeval)
+```

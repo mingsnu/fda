@@ -170,7 +170,7 @@ lines(sumTempfd*(1/35), lwd = 3, lty=2, col = "blue")
 
 ## `[` operator
 ## you can use `[` operator to choose which line to plot
-plot(tmpfd[1:2])
+plot(tempfd[1:2])
 
 ## predict method
 t = day.5[sample(1:length(day.5), 10)]
@@ -181,24 +181,26 @@ points(t, p, pch=19, col="green")
 ## boxplot
 boxplot(tempfd)
 
-## ---- ex9
+## ---- ex9-1
 ## Smoothing Using Regression Analysis
 MtlDaily = as.matrix(MontrealTemp)
 thawdata = t(MtlDaily[,16:47])
 
 ## only use part of the data
-daytime = (16:47)+0.5
+daytime = ((16:47)+0.5)
 plot(daytime, apply(thawdata,1,mean), "b", lwd=2,
      xlab="Day", ylab="Temperature (deg C)", cex=1.2)
 ## create basis
 thawbasis = create.bspline.basis(c(16,48),7)
 ## the 'phi' matrix
-thawbasismat = predict(daytime, thawbasis)
+thawbasismat = predict(thawbasis, daytime)
 ## calculate the coefficient matrix
 ## crossprod(x, y) is the same as 't(x) %*% y'
 ## crossprod(x) is the same as 't(x) %*% x'
+## same as using 'tmp=solve(t(thawbasismat)%*%thawbasismat)%*%t(thawbasismat)%*%thawdata'
 thawcoef = solve(crossprod(thawbasismat),
     crossprod(thawbasismat,thawdata))
+
 ## build the functional data object
 thawfd = fd(thawcoef, thawbasis,
     list("Day", "Year", "Temperature (deg C)"))
@@ -212,22 +214,27 @@ lines(mean(thawfd), lty=1, lwd=2, col=1)
 plotfit.fd(thawdata[,1], daytime, thawfd[1],
            lty=1, lwd=2, main='')
 
-## ---- ex10-1
-omega           = 2*pi/365
-thawconst.basis = create.constant.basis(thawbasis$rangeval)
+## ---- ex9-2
+thawSmooth = smooth.basis(daytime, thawdata, thawbasis)
+## compare the difference between 'thawSmooth$y2cMap%*%thawdata'
+## and 'thawcoef' we calculated earlier, 
+sum((thawSmooth$y2cMap%*%thawdata-thawcoef)^2)
 
-betalist       = vector("list", 3)
-betalist[[1]]  = fd(0, thawconst.basis)
-betalist[[2]]  = fd(omega^2, thawconst.basis)
-betalist[[3]]  = fd(0, thawconst.basis)
-harmaccelLfd0  = Lfd(3, betalist)
+## ---- ex10-1
+Lbasis  = create.constant.basis(c(0,365));  #  create a constant basis
+Lcoef   = matrix(c(0,(2*pi/365)^2,0),1,3)   #  set up three coefficients
+wfdobj  = fd(Lcoef,Lbasis)      # define an FD object for weight functions
+wfdlist = fd2list(wfdobj)       # convert the FD object to a cell object
+harmaccelLfd0 = Lfd(3, wfdlist)  #  define the operator object
 
 ## ---- ex10-2
-## more handy functions 'int2Lfd' and 'vec2Lfd'
+## use 'int2Lfd' to create the acceleration object
 accelLfd = int2Lfd(2)
 
-harmaccelLfd = vec2Lfd(c(0,omega^2,0), thawbasis$rangeval)
-all.equal(harmaccelLfd0[-1], harmaccelLfd[-1])
+## use 'vec2Lfd' to create the harmonic acceleration object and
+## the result is the same with 'harmaccelLfd0'
+## Lcoef can be a vector
+harmaccelLfd <- vec2Lfd(Lcoef, c(0,365))
 
 ## back to the temperature example introduced above
 LmeanTempVec = eval.fd(day.5, meanTempfd, harmaccelLfd)
@@ -236,8 +243,10 @@ plot(day.5, LmeanTempVec, type="l", cex=1.2,
 abline(h=0)
 
 ## ---- ex10-3
-D2tempfd = deriv.fd(temp.fd, 2)
-Ltempfd  = deriv.fd(temp.fd, harmaccelLfd)
+## Second derivative to meanTempfd
+D2tempfd = deriv.fd(meanTempfd, 2)
+## Apply harmonic acceleration operator to meanTempfd
+Ltempfd  = deriv.fd(meanTempfd, harmaccelLfd)
+plot(Ltempfd)
 
-
-
+## ---- ex11

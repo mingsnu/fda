@@ -380,7 +380,7 @@ lines(sumTempfd*(1/35), lwd = 3, lty=2, col = "blue")
 
 ## `[` operator
 ## you can use `[` operator to choose which line to plot
-plot(tmpfd[1:2])
+plot(tempfd[1:2])
 
 ## predict method
 t = day.5[sample(1:length(day.5), 10)]
@@ -399,23 +399,35 @@ Recall that $x(t) \approx \sum_{k=1}^K c_k\phi_k(t)$ and the ordinary least squa
 
 Next we use an example to illustrate how to use this method to smooth the functional data
 
+*January Thaw Data* In the following example, we will use 34 years of daily temperature data for Montreal, extracts temperatures for January 16th to February 15th. The data looks like this:
+
+           1961  1962  1963 1964  1965  1966  1967  1968  1969  1970 ...
+    jan16 -10.9  -7.5 -16.2 -4.2 -22.5 -15.9 -13.9 -21.4 -15.8 -17.5 ...
+	jan17  -6.1 -13.1 -12.0 -8.1 -22.0  -7.8  -6.4 -17.8  -7.3  -8.9 ...
+	jan18 -16.1 -15.9 -12.3 -4.2 -16.1  -6.4 -19.8  -8.9   0.8 -17.3 ...
+	jan19 -21.7 -13.1  -8.1  0.3 -13.6  -3.6 -17.0   1.1  -2.5 -23.6 ...
+	jan20 -19.2 -12.8  -3.4  2.0  -7.2  -1.2  -9.7   0.3  -9.5 -23.9 ...
+	...    ...   ...   ...   ...   ...   ...   ...   ...   ...  ...
+
 <div class="chunk" id="ex9"><div class="rcode"><div class="source"><pre class="knitr r">## Smoothing Using Regression Analysis
 MtlDaily = as.matrix(MontrealTemp)
 thawdata = t(MtlDaily[,16:47])
 
 ## only use part of the data
-daytime = (16:47)+0.5
+daytime = (16:47)
 plot(daytime, apply(thawdata,1,mean), "b", lwd=2,
      xlab="Day", ylab="Temperature (deg C)", cex=1.2)
 ## create basis
 thawbasis = create.bspline.basis(c(16,48),7)
 ## the 'phi' matrix
-thawbasismat = predict(daytime, thawbasis)
+thawbasismat = predict(thawbasis, daytime)
 ## calculate the coefficient matrix
 ## crossprod(x, y) is the same as 't(x) %*% y'
 ## crossprod(x) is the same as 't(x) %*% x'
+## same as using 'tmp=solve(t(thawbasismat)%*%thawbasismat)%*%t(thawbasismat)%*%thawdata'
 thawcoef = solve(crossprod(thawbasismat),
     crossprod(thawbasismat,thawdata))
+
 ## build the functional data object
 thawfd = fd(thawcoef, thawbasis,
     list("Day", "Year", "Temperature (deg C)"))
@@ -441,7 +453,7 @@ $$Lx(t) = \beta_0(t)x(t) + \beta_1(t)Dx(t) + \cdots + \beta_{m-1}(t)D^{m-1}x(t) 
 
 where the known *linear differential operator coefficient functions* $\beta_j(t), j=0,..., m-1$ are either constants or functions.
 
-Some special examples are acceleration, $Lx=D^2x$, andharmonic acceleration $L=\omega^2D + D^3$.
+Some special examples are acceleration, $Lx=D^2x$, and harmonic acceleration $L=\omega^2D + D^3$, where $\omega$ is the period. (For now we just focus on how it is defined, we'll go through more detail about harmonic acceleration operator later).
 
 The `Lfd` class is defined by a constructor function `Lfd`:
 
@@ -449,7 +461,7 @@ The `Lfd` class is defined by a constructor function `Lfd`:
 
 **Description**
 
-    A linear differential operator of order $m$ is defined, usually to specify a roughness penalty.
+    A linear differential operator of order m is defined, usually to specify a roughness penalty.
 
      
 **Arguments**
@@ -457,32 +469,33 @@ The `Lfd` class is defined by a constructor function `Lfd`:
 - *nderiv*: a nonnegative integer specifying the order $m$ of the highest
           order derivative in the operator
 
-- *bwtlist*: a list of length $m$.  Each member contains a functional data
-          object that acts as a weight function for a derivative.  The
+- *bwtlist*: a list of length $m$.  Each member contains a **functional data
+          object** that acts as a weight function for a derivative.  The
           first member weights the function, the second the first
           derivative, and so on up to order $m-1$.
 
 **Examples**
 
-> For example, consider the harmonic acceleration object. Here $m = 3$, and $\beta_0 = \beta_2 = 0$ while $\beta_1=\omega^2$. In R we could define the harmonic acceleration Lfd object harmaccelLfd in this way:
+Consider the harmonic acceleration operator where $m = 3$, $\beta_0 = \beta_2 = 0$ and $\beta_1=\omega^2$. In R we could define the harmonic acceleration object `harmaccelLfd0` in this way:
 
-<div class="chunk" id="ex10-1"><div class="rcode"><div class="source"><pre class="knitr r">omega           = 2*pi/365
+<div class="chunk" id="ex10-1"><div class="rcode"><div class="source"><pre class="knitr r">omega = 2*pi/365
 thawconst.basis = create.constant.basis(thawbasis$rangeval)
 
-betalist       = vector("list", 3)
-betalist[[1]]  = fd(0, thawconst.basis)
-betalist[[2]]  = fd(omega^2, thawconst.basis)
-betalist[[3]]  = fd(0, thawconst.basis)
-harmaccelLfd0  = Lfd(3, betalist)
+betalist = vector("list", 3)
+betalist[[1]] = fd(0, thawconst.basis)
+betalist[[2]] = fd(omega^2, thawconst.basis)
+betalist[[3]] = fd(0, thawconst.basis)
+harmaccelLfd0 = Lfd(3, betalist)
 </pre></div>
 </div></div>
 
-> The code above is a bit cumbersome for the majority of situations where the differential
-operator is just a power of $D$ or where all the coefficients $\beta_j$ are constants.
+However, the code used above is a little bit cumbersome. Most of the time the differential operator we need is just a power of $D$ or all the coefficients $\beta_j$ are constants, and in such situation, we can simply use `int2Lfd` and `vec2Lfd` functions.
 
-<div class="chunk" id="ex10-2"><div class="rcode"><div class="source"><pre class="knitr r">## more handy functions 'int2Lfd' and 'vec2Lfd'
+<div class="chunk" id="ex10-2"><div class="rcode"><div class="source"><pre class="knitr r">## use 'int2Lfd' to create the acceleration object
 accelLfd = int2Lfd(2)
 
+## use 'vec2Lfd' to create the harmonic acceleration object and
+## the result is the same with 'harmaccelLfd0'
 harmaccelLfd = vec2Lfd(c(0,omega^2,0), thawbasis$rangeval)
 all.equal(harmaccelLfd0[-1], harmaccelLfd[-1])
 
